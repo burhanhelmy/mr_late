@@ -1,0 +1,9 @@
+{
+    "testSourceFolder":".sim",
+    "sourceFolder":"/Volumes/Photo\\ Bay",
+    "destinationFolder":"recovered",
+    "delayBetweenCopies": 5000,
+    "logsFolder": "logs",
+    "maxBufferSize": 1048576000,
+    "bwLimit": 6250
+}
