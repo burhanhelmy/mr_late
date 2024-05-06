@@ -6,6 +6,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
+    "@ptkdev/logger": "^1.8.0",
     "express": "^4.19.2"
   },
   "name": "mr_late",
@@ -14,7 +15,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/index.ts",
-    "prod" : "tsc && node compiled/index.js",
+    "prod": "tsc && node compiled/index.js",
     "compile": "tsc"
   },
   "author": "",
