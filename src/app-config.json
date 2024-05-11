@@ -1,10 +1,10 @@
 {
-    "testSourceFolder":".sim",
-    "sourceFolder":"/Volumes/Photo\\ Bay/ios\\ the\\ origin.photoslibrary/originals",
-    "destinationFolder":"/Volumes/DataVault/iostheorigin",
-    "delayBetweenCopies": 250,
+    "sourceFolder":"",
+    "destinationFolder":"",
+    "delayBetweenCopies": 500,
     "logsFolder": "logs",
     "maxBufferSize": 1048576000,
-    "maxBwLimit": 50000,
-    "bigFileSize": 1073741824
+    "maxBwLimit": 5000,
+    "bigFileSize": 1073741824,
+    "grabFileFromThisDate" : "2022-08-28T02:00:16.000Z"
 }

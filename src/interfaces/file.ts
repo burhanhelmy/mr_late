@@ -1,9 +1,10 @@
 export interface file {
     name: string;
-    size: string;
-    sizeInBytes: number;
+    size: string | 'NAN';
+    sizeInBytes: number | 0;
     path: string;
     fileStatus: fileStatusEnum;
+    createdDate: Date | undefined;
     note?: string | undefined;
 }
 

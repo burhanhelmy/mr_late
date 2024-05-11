@@ -19,14 +19,9 @@ export class App {
     init() {
 
         const menuArray = [
-            { option: '1', text: 'Scan Folder' },
-            { option: '2', text: 'Run Copy' },
+            { option: '1', text: 'Generate log from app-config.json' },
+            { option: '2', text: 'Run file recovery' },
         ];
-        //         const menuOptionText =
-        //             `MENU:
-        // - Scan Folder: [1]
-        // - Run Copy: [2]
-        //     `;
         const menuOptionText = menuArray.map((menu) => {
             return `${menu.text}: [${menu.option}]`;
         }).join('\n');
@@ -34,11 +29,11 @@ export class App {
             switch (option) {
                 case '1':
                     this.scanFiles();
-                    this.rl.close();
+                    console.clear();
+                    this.init();
                     break;
                 case '2':
-                    // this.recoverFile();
-                    this.rl.close();
+                    this.selectLog();
                     break;
                 default:
                     this.logger.info("Invalid option");
@@ -46,28 +41,56 @@ export class App {
         });
     }
 
-    getFileSize(filePath: string): { formattedSize: string, fileSizeInBytes: number } {
-        var stats = fs.statSync(filePath)
-        var fileSizeInBytes = stats.size;
-        const fileSizeInMB = fileSizeInBytes / (1024 * 1024);
-        let formattedSize = '';
-        if (fileSizeInMB >= 1024) {
-            const fileSizeInGB = fileSizeInMB / 1024;
-            formattedSize = `${fileSizeInGB.toFixed(2)}GB`;
-        } else if (fileSizeInMB >= 1) {
-            formattedSize = `${fileSizeInMB.toFixed(2)}MB`;
-        } else {
-            const fileSizeInKB = fileSizeInBytes / 1024;
-            formattedSize = `${fileSizeInKB.toFixed(2)}KB`;
+    getFileInfo(filePath: string): { formattedSize: string, fileSizeInBytes: number, createdDate: Date } | undefined {
+        if (!fs.existsSync(filePath)) {
+            this.logger.error(`File does not exist: ${filePath}`);
+            return;
         }
-        return { formattedSize, fileSizeInBytes };
+        try {
+            var stats = fs.statSync(filePath)
+            var fileSizeInBytes = stats.size;
+            var createdDate = stats.birthtime;
+            const fileSizeInMB = fileSizeInBytes / (1024 * 1024);
+            let formattedSize = '';
+            if (fileSizeInMB >= 1024) {
+                const fileSizeInGB = fileSizeInMB / 1024;
+                formattedSize = `${fileSizeInGB.toFixed(2)}GB`;
+            } else if (fileSizeInMB >= 1) {
+                formattedSize = `${fileSizeInMB.toFixed(2)}MB`;
+            } else {
+                const fileSizeInKB = fileSizeInBytes / 1024;
+                formattedSize = `${fileSizeInKB.toFixed(2)}KB`;
+            }
+            return { formattedSize, fileSizeInBytes, createdDate };
+        }
+        catch (e) {
+            this.logger.error(`Error: ${e}`);
+        }
+    }
+
+    updateCreatedDateOnLogs(log: log) {
+        const files = log.files;
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (!fs.existsSync(file.path)) {
+                this.logger.error(`File does not exist: ${file.path}`);
+                continue;
+            }
+            const stats = fs.statSync(file.path);
+            file.createdDate = stats.birthtime;
+        }
+        return log;
     }
 
     scanFiles() {
-
         const sourceFolder = appConfig.sourceFolder;
+
+        if (sourceFolder === '' || !fs.existsSync(sourceFolder)) {
+            this.logger.error(" Source folder does not exist, exiting. Please update app-config.json");
+            return;
+        }
+
         this.logger.warning(`👀 Scanning...`);
-        // exclude .DS_Store and .aae files
         exec(`find ${sourceFolder} -type f | grep -vE '\.(DS_Store|aae)$'`, {
             maxBuffer: appConfig.maxBufferSize
         }, (err, stdout) => {
@@ -81,11 +104,12 @@ export class App {
             var files: file[] = [];
 
             files = lines.map((line) => {
-                const fileSize = this.getFileSize(line);
+                const fileInfo = this.getFileInfo(line);
                 const file: file = {
                     name: path.basename(line),
-                    size: fileSize.formattedSize,
-                    sizeInBytes: fileSize.fileSizeInBytes,
+                    createdDate: fileInfo?.createdDate,
+                    size: fileInfo?.formattedSize || 'NAN',
+                    sizeInBytes: fileInfo?.fileSizeInBytes || 0,
                     path: line,
                     fileStatus: fileStatusEnum.NOT_STARTED,
                 };
@@ -109,22 +133,24 @@ export class App {
 
             const fileName = Date.now() + '.json';
 
-            const logData = {
+            let logData = {
                 name: fileName,
                 totalSize,
                 totalFiles,
                 files,
             }
 
+            logData = this.excludeOlderFileFromGivenDate(logData);
+            logData = this.sortFileFromLatestToOldest(logData);
+            logData = this.sortFileFromSmallToLarge(logData);
+
             this.logger.warning("⏳ Writing logs to file...");
             fs.createWriteStream(`${logsFolder + '/' + fileName}`, { flags: 'a' }).write(JSON.stringify(logData, null, 2));
             this.logger.info("✅ Log file written successfully");
-            this.rl.close();
         });
     }
 
     getBwLimit(file: file): number {
-        // bewLimit base on file size if file size is greater than 1GB then bwLimit is appConfig.maxBwLimit if less than 500 there is no limit and if less than 1 gb it will be maxBwLimit * 2. File size can be GB KB or MB in string format
         const fileSize = file.size;
         let bwLimit = appConfig.maxBwLimit;
         if (fileSize.includes('GB')) {
@@ -132,7 +158,7 @@ export class App {
         } else if (fileSize.includes('KB')) {
             bwLimit = 0;
         } else if (fileSize.includes('MB')) {
-            bwLimit = appConfig.maxBwLimit * 2;
+            bwLimit = appConfig.maxBwLimit * 1.5;
         }
         return bwLimit;
     }
@@ -254,22 +280,62 @@ export class App {
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             if (file.fileStatus === fileStatusEnum.NOT_STARTED || file.fileStatus === fileStatusEnum.IN_PROGRESS) {
-                if (appConfig.delayBetweenCopies > 0) {
-                    console.table(this.getLogStats(log));
-                    this.logger.info(`😴 Delaying for ${appConfig.delayBetweenCopies}ms`);
-                    await new Promise(resolve => setTimeout(resolve, appConfig.delayBetweenCopies));
-                }
+
                 try {
                     file.fileStatus = fileStatusEnum.IN_PROGRESS;
                     await this.recoverFile(file);
+                    // check if source folder still exists before continuing
                     this.saveLog(log);
                 } catch (error) {
                     this.saveLog(log);
                     this.logger.error(`🧨 Error recovering file: ${file.name}`);
                 }
+
+                if (!fs.existsSync(appConfig.sourceFolder)) {
+                    this.logger.error("🧨 Source folder does not exist, exiting...");
+                    break;
+                }
+
+                if (appConfig.delayBetweenCopies > 0) {
+                    console.table(this.getLogStats(log));
+                    this.logger.info(`😴 Delaying for ${appConfig.delayBetweenCopies}ms`);
+                    await new Promise(resolve => setTimeout(resolve, appConfig.delayBetweenCopies));
+                }
             }
         }
+        this.logger.info("✅ Recovery completed");
         this.rl.close();
+    }
+
+    sortFileFromLatestToOldest(log: log) {
+        const files = log.files;
+        const sortedFiles = files.sort((a, b) => {
+            if (a.createdDate && b.createdDate) {
+                return new Date(a.createdDate).getTime() - new Date(b.createdDate).getTime();
+            }
+            return 0;
+        });
+        log.files = sortedFiles.reverse();
+        return log;
+    }
+
+    excludeOlderFileFromGivenDate(log: log) {
+        if (!appConfig.grabFileFromThisDate) {
+            return log;
+        }
+        const date = new Date();
+        const files = log.files;
+        const filteredFiles = files.filter((file) => {
+            if (file.createdDate) {
+                return new Date(file.createdDate).getTime() >= date.getTime();
+            }
+            return false;
+        });
+        console.log('====================================');
+        console.log(files.length, filteredFiles.length);
+        console.log('====================================');
+        log.files = filteredFiles;
+        return log;
     }
 
     sortFileFromSmallToLarge(log: log) {
@@ -286,12 +352,11 @@ export class App {
                 this.logger.error("File does not exist, skipping...");
                 file.fileStatus = fileStatusEnum.NOT_FOUND;
                 reject(file);
-                return;
             }
 
             const destinationFolder = appConfig.destinationFolder;
 
-            this.logger.info(`Copying file: ${file.path} to ${destinationFolder}`);
+            this.logger.info(`Copying ${file.size} file: ${file.path} to ${destinationFolder}`);
 
             if (!fs.existsSync(destinationFolder)) {
                 this.logger.info("Destination folder does not exist, creating it...");
@@ -300,7 +365,7 @@ export class App {
 
             const bwLimit = this.getBwLimit(file);
 
-            const rsyncProcess = spawn('rsync', ['--progress', '--inplace', bwLimit != 0 ? `--bwlimit=${bwLimit}` : '', file.path, `${destinationFolder}`]);
+            const rsyncProcess = spawn('/usr/bin/rsync', ['--times', '--progress', '--inplace', `--bwlimit=${appConfig.maxBwLimit}`, file.path, `${destinationFolder}`]);
 
             rsyncProcess.stdout.on('data', (data) => {
                 this.logger.info(`🎲 ${data}`);
