@@ -9,3 +9,7 @@ I'm facing an issue with my ssd when I try to copy large number of files with no
 - Custom copy speed process
 - Stateful copy process to stop and resume
 - Filtering date of files to copy
+
+
+## Disclaimer
+This software is still in development and not recommended to use in production environment. Use at your own risk. It only tested on MacOS.
