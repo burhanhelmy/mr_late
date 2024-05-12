@@ -8,3 +8,4 @@ I'm facing an issue with my ssd when I try to copy large number of files with no
 ## Features
 - Custom speed the copy process
 - Stateful copy process
+- Filtering date of files to copy
