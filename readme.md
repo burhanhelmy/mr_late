@@ -1,16 +1,10 @@
 # MR LATE
 
-## Project status enum [code]
+## Description
+This software is used to recover files from hdd with capability to slow down the copy process to recover files that from a damaged hdd/ssd.
 
-- Not started [0]
-- Scanning for files [1]
-- In progress [2]
-- Completed [3]
-- Error [999]
+I'm facing an issue with my ssd when I try to copy large number of files with normal copy process and the ssd will eventually disconnect and reconnect. So I decided to create this software to slow down the copy process to prevent the ssd from disconnecting and reconnecting.
 
-## File status enum [code]
-
-- Not started [0]
-- In progress [1]
-- Completed [2]
-- Error [999]
+## Features
+- Custom speed the copy process
+- Stateful copy process
